@@ -34,6 +34,7 @@ import textwrap
 import warnings
 import site
 import struct
+import fcntl
 
 from setuptools import Command, _dont_write_bytecode
 from setuptools.sandbox import run_setup
@@ -1481,12 +1482,14 @@ class PthDistributions(Environment):
         for path in yield_lines(self.paths):
             list(map(self.add, find_distributions(path, True)))
 
-    def _load(self):
-        self.paths = []
+    def _load(self, lock=True, paths=[]):
+        self.paths = list(paths)
         saw_import = False
         seen = dict.fromkeys(self.sitedirs)
         if os.path.isfile(self.filename):
             f = open(self.filename, 'rt')
+            if lock:
+                fcntl.flock(f, fcntl.LOCK_SH)
             for line in f:
                 if line.startswith('import'):
                     saw_import = True
@@ -1514,10 +1517,12 @@ class PthDistributions(Environment):
 
     def save(self):
         """Write changed .pth file back to disk"""
-        if not self.dirty:
-            return
+        lock = open(self.filename, 'a')
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        self._load(lock=False, paths=self.paths)
 
-        data = '\n'.join(map(self.make_relative, self.paths))
+        relative_paths = set(map(self.make_relative,self.paths))
+        data = '\n'.join(relative_paths)
         if data:
             log.debug("Saving %s", self.filename)
             data = (
@@ -1535,11 +1540,12 @@ class PthDistributions(Environment):
             f.write(data)
             f.close()
 
-        elif os.path.exists(self.filename):
+        else:
             log.debug("Deleting empty %s", self.filename)
             os.unlink(self.filename)
 
         self.dirty = False
+        lock.close()
 
     def add(self, dist):
         """Add `dist` to the distribution map"""
