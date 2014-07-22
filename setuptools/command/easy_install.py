@@ -34,7 +34,7 @@ import textwrap
 import warnings
 import site
 import struct
-import fcntl
+from lockfile import LockFile
 
 from setuptools import Command, _dont_write_bytecode
 from setuptools.sandbox import run_setup
@@ -1488,8 +1488,10 @@ class PthDistributions(Environment):
         seen = dict.fromkeys(self.sitedirs)
         if os.path.isfile(self.filename):
             f = open(self.filename, 'rt')
+            lockfile = None
             if lock:
-                fcntl.flock(f, fcntl.LOCK_SH)
+                lockfile = LockFile(self.filename)
+                lockfile.acquire()
             for line in f:
                 if line.startswith('import'):
                     saw_import = True
@@ -1509,6 +1511,8 @@ class PthDistributions(Environment):
                     continue
                 seen[path] = 1
             f.close()
+            if lockfile:
+                lockfile.release()
 
         if self.paths and not saw_import:
             self.dirty = True  # ensure anything we touch has import wrappers
@@ -1517,8 +1521,9 @@ class PthDistributions(Environment):
 
     def save(self):
         """Write changed .pth file back to disk"""
+        lockfile = LockFile(self.filename)
+        lockfile.acquire()
         lock = open(self.filename, 'a')
-        fcntl.flock(lock, fcntl.LOCK_EX)
         self._load(lock=False, paths=self.paths)
 
         relative_paths = set(map(self.make_relative,self.paths))
@@ -1546,6 +1551,7 @@ class PthDistributions(Environment):
 
         self.dirty = False
         lock.close()
+        lockfile.release()
 
     def add(self, dist):
         """Add `dist` to the distribution map"""
