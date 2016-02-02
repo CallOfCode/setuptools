@@ -1504,9 +1504,9 @@ class PthDistributions(Environment):
 
     def _load(self):
         # Lock self.filename until save() is called
-        import fcntl
-        self.lock = open(self.filename, 'a')
-        fcntl.flock(self.lock, fcntl.LOCK_EX)
+        from lockfile import LockFile
+        lockfile = LockFile(self.filename)
+        lockfile.acquire()
 
         self.paths = []
         saw_import = False
@@ -1541,7 +1541,7 @@ class PthDistributions(Environment):
     def save(self):
         """Write changed .pth file back to disk"""
         if not self.dirty:
-            self.lock.close()
+            self.lockfile.release()
             return
 
         rel_paths = list(map(self.make_relative, self.paths))
@@ -1560,7 +1560,7 @@ class PthDistributions(Environment):
             os.unlink(self.filename)
 
         self.dirty = False
-        self.lock.close()
+        self.lockfile.release()
 
     @staticmethod
     def _wrap_lines(lines):
