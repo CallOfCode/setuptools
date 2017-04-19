@@ -1553,6 +1553,10 @@ class PthDistributions(Environment):
             list(map(self.add, find_distributions(path, True)))
 
     def _load(self):
+        # Lock self.filename until save() is called
+        from lockfile import LockFile
+        self.lockfile = LockFile(self.filename)
+        self.lockfile.acquire()
         self.paths = []
         saw_import = False
         seen = dict.fromkeys(self.sitedirs)
@@ -1585,7 +1589,12 @@ class PthDistributions(Environment):
 
     def save(self):
         """Write changed .pth file back to disk"""
+        from lockfile import NotLocked
         if not self.dirty:
+            try:
+                self.lockfile.release()
+            except NotLocked:
+                pass
             return
 
         rel_paths = list(map(self.make_relative, self.paths))
@@ -1602,7 +1611,10 @@ class PthDistributions(Environment):
         elif os.path.exists(self.filename):
             log.debug("Deleting empty %s", self.filename)
             os.unlink(self.filename)
-
+        try:
+            self.lockfile.release()
+        except NotLocked:
+            pass
         self.dirty = False
 
     @staticmethod
