@@ -60,11 +60,15 @@ class install(orig.install):
         if self.old_and_unmanageable or self.single_version_externally_managed:
             return orig.install.run(self)
 
-        if not self._called_from_setup(inspect.currentframe()):
-            # Run in backward-compatibility mode to support bdist_* commands.
-            orig.install.run(self)
-        else:
-            self.do_egg_install()
+        #if not self._called_from_setup(inspect.currentframe()):
+        #    # Run in backward-compatibility mode to support bdist_* commands.
+        #    orig.install.run(self)
+        #else:
+        #    self.do_egg_install()
+
+        # To avoid race condition updating easy_install.pth when doing parallel
+        # build. Let's run the install using the backward-compatibility mode.
+        orig.install.run(self)
 
     @staticmethod
     def _called_from_setup(run_frame):
