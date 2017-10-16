@@ -5,6 +5,8 @@ dist
 include
 lib
 distribute.egg-info
+requirements.txt
+setup.cfg
 setuptools.egg-info
 .coverage
 .eggs
